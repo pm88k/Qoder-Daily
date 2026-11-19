@@ -1451,12 +1451,18 @@ def notify_email(title, content):
         port = 465
     try:
         import smtplib
-        from email.mime.text import MIMEText
-        from email.header import Header
-        msg = MIMEText(content, "plain", "utf-8")
-        msg["Subject"] = Header(title, "utf-8")
+        import traceback
+        from email.message import EmailMessage
+        # strip any accidental whitespace / full-width chars around credentials
+        host = host.strip()
+        user = user.strip()
+        password = password.strip()
+        recipients = [a.strip() for a in recipients]
+        msg = EmailMessage()
+        msg["Subject"] = title
         msg["From"] = user
         msg["To"] = ", ".join(recipients)
+        msg.set_content(content, charset="utf-8")
         if port == 465:
             server = smtplib.SMTP_SSL(host, port, timeout=25)
         else:
@@ -1464,10 +1470,11 @@ def notify_email(title, content):
             server.starttls()
         with server:
             server.login(user, password)
-            server.sendmail(user, recipients, msg.as_string())
+            server.send_message(msg, from_addr=user, to_addrs=recipients)
         return True
     except Exception as error:
         log("邮件推送失败：%s" % error)
+        log("邮件推送traceback：%s" % traceback.format_exc().replace("\n", " | "))
         return False
 
 
