@@ -1453,11 +1453,15 @@ def notify_email(title, content):
         import smtplib
         import traceback
         from email.message import EmailMessage
-        # strip any accidental whitespace / full-width chars around credentials
-        host = host.strip()
-        user = user.strip()
-        password = password.strip()
-        recipients = [a.strip() for a in recipients]
+        # strip accidental whitespace / Chinese text pasted together with credentials
+        import re as _re
+        host = _re.sub(r"[^A-Za-z0-9.\-]", "", host)
+        # email / code must be ASCII only; drop stray CJK / full-width chars
+        user = _re.sub(r"[^A-Za-z0-9@._\-]", "", user)
+        password = _re.sub(r"[^A-Za-z0-9]", "", password)
+        recipients = [_re.sub(r"[^A-Za-z0-9@._\-]", "", a) for a in recipients]
+        log("邮件配置：host=%s user_len=%d pass_len=%d to=%d" % (
+            host, len(user), len(password), len(recipients)))
         msg = EmailMessage()
         msg["Subject"] = title
         msg["From"] = user
