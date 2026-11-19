@@ -42,6 +42,11 @@
    WECOM_WEBHOOK   企微群机器人地址或 key（可选）
    DINGTALK_WEBHOOK  钉钉机器人 webhook（可选）
    DINGTALK_SECRET   钉钉加签密钥（可选）
+   SMTP_HOST       SMTP 服务器，如 smtp.qq.com（可选，邮件推送）
+   SMTP_PORT       SMTP 端口，默认 465（SSL）（可选）
+   SMTP_USER       发件邮箱，如 xxx@qq.com（可选）
+   SMTP_PASS       邮箱授权码/密码（可选）
+   SMTP_TO         收件邮箱，多个用逗号分隔；留空则等于 SMTP_USER（可选）
 QODER_WINDOW_RETRY  【可选】10:00-11:00 CST 内暂未下发时按 10 分钟重试（默认 1）
 
 ⌨️ 命令
@@ -1433,8 +1438,41 @@ def notify_ql(title, content):
         return False
 
 
+def notify_email(title, content):
+    host = _env("SMTP_HOST")
+    user = _env("SMTP_USER")
+    password = _env("SMTP_PASS")
+    if not (host and user and password):
+        return False
+    recipients = [a.strip() for a in _env("SMTP_TO").split(",") if a.strip()] or [user]
+    try:
+        port = int(_env("SMTP_PORT") or "465")
+    except ValueError:
+        port = 465
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.header import Header
+        msg = MIMEText(content, "plain", "utf-8")
+        msg["Subject"] = Header(title, "utf-8")
+        msg["From"] = user
+        msg["To"] = ", ".join(recipients)
+        if port == 465:
+            server = smtplib.SMTP_SSL(host, port, timeout=25)
+        else:
+            server = smtplib.SMTP(host, port, timeout=25)
+            server.starttls()
+        with server:
+            server.login(user, password)
+            server.sendmail(user, recipients, msg.as_string())
+        return True
+    except Exception as error:
+        log("邮件推送失败：%s" % error)
+        return False
+
+
 def notify_all(title, content):
-    handlers = (notify_pushplus, notify_bark, notify_wecom, notify_dingtalk, notify_ql)
+    handlers = (notify_email, notify_pushplus, notify_bark, notify_wecom, notify_dingtalk, notify_ql)
     if not any(handler(title, content) for handler in handlers):
         log("（未配置推送渠道，本次只记录日志）")
 
